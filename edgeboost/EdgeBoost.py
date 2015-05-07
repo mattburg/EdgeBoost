@@ -29,7 +29,7 @@ class CommunityEdgeBoost():
         if verbose == True:
             logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
         else:
-            logging.basicConfig(stream=sys.stdout, level=logging.
+            logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
 
         self.communityDetector = communityDetector
@@ -60,7 +60,7 @@ class CommunityEdgeBoost():
         nodeTable = Community.compute_community_partitions(G,self.communityDetector)
         
         logging.debug("aggregating clusters")
-        communities = Community.get_aggregate_partition(G,nodeTable,N = self.numIterations,
+        communities = Community.aggregate_partitions(G,nodeTable,N = self.numIterations,
                 tau = self.threshold,connectStrayNodes = self.connectStrayNodes)
             
         return communities
@@ -101,7 +101,7 @@ class RewireEdgeBoost():
         nodeTable = Community.compute_rewire_community_partitions(G,self.communityDetectors,self.numIterations,self.rewiringProb)
         
         logging.debug("aggregating final partition")
-        communities = Community.get_aggregate_partition(G,nodeTable,N = self.numIterations,
+        communities = Community.aggregate_partitions(G,nodeTable,N = self.numIterations,
                 tau = self.threshold)
             
         return communities
