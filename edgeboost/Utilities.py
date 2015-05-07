@@ -1,6 +1,9 @@
 import scipy.sparse as sp
 import numpy as np
 
+"""Module for Utility Functions"""
+
+
 def igraph_to_sparse_matrix(G):
     xs, ys = map(np.array, zip(*G.get_edgelist()))
     if not G.is_directed():
