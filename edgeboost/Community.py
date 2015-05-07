@@ -6,10 +6,15 @@ from copy import deepcopy
 import scipy.sparse as sp
 from edgeboost import Utilities
 from edgeboost import LinkPrediction
+import logging
 
+
+"""This module contains all code for ensemble community detection and aggregation"""
+
+
+#minimum size of core communities
 MIN_CORE_COMM_SIZE = 2.0
 
-#@profile    
 def compute_community_partitions(G_imputed,communityFunc,partitionList = None):
     
     #number of times to run community detection
@@ -33,8 +38,6 @@ def compute_community_partitions(G_imputed,communityFunc,partitionList = None):
             communityIterator = partitionList[i]
         else:
             communityIterator = communityFunc(G_imputed)
-        
-        
         nodeCommArray.extend([(n,j+commCounterId) for j,comm in enumerate(communityIterator) for n in comm])
         
         #increment counter that assigns ids to each community
@@ -47,21 +50,59 @@ def compute_community_partitions(G_imputed,communityFunc,partitionList = None):
 
     x = np.array([index[0] for index in nodeCommArray])
     y = np.array([index[1] for index in nodeCommArray])
+    nodeCommArray = sp.coo_matrix((np.ones(x.shape),(x,y)),dtype = np.uint32).tocsr()
+    return nodeCommArray
+
+
+
+def compute_rewire_community_partitions(G,communityFunc,numIterations,rewireProb):
+    
+    #number of times to run community detection
+    
+    #intialize arrays that store node and community assignments
+    nodeCommArray = []
+    
+    #for each pre-computed batch of imputed links, add links to network and cluster
+    #storing each clustering in the two tables
+    testcommunities = []
+    commCounterId = 1
+    for i in xrange(numIterations):
+        
+        G_rewired = G.copy()
+        G_rewired.rewire_edges(rewireProb)
+        communityIterator = communityFunc(G_rewired)
+        
+        nodeCommArray.extend([(n,j+commCounterId) for j,comm in enumerate(communityIterator) for n in comm])
+        
+        #increment counter that assigns ids to each community
+        commCounterId+=len(communityIterator)
+    
+    #create dense array of node --> community array where each row is a node
+    #and each column is a vector representing all of the communities for that node
+    
+
+    x = np.array([index[0] for index in nodeCommArray])
+    y = np.array([index[1] for index in nodeCommArray])
     nodeCommArray = sp.coo_matrix((np.ones(x.shape),(x,y)),dtype = np.uint8).tocsr()
     return nodeCommArray
 
-def get_aggregate_partition(G,nodeCommArray,tau = None):
+
+
+
+def aggregate_partitions(G,nodeCommArray,N,tau = None,connectStrayNodes=True):
     
     #generate core communities
-    N = len(G['imputation_batches'])
+    #N = len(G['imputation_batches'])
+   
     
     neighborsMatrix = nodeCommArray*nodeCommArray.T
-    print "number of stored elements:   ",len(neighborsMatrix.data)
 
+    #create copy of neighbors matrix for evaluating thresholds
+    scoringMatrix = neighborsMatrix.copy()
+    neighborsMatrix = sp.triu(neighborsMatrix,format= "csr")
+    
+    
     if tau == None:
-        #create copy of neighbors matrix for evaluating thresholds
-        scoringMatrix = neighborsMatrix.copy()
-        neighborsMatrix = sp.triu(neighborsMatrix,format= "csr")
         
         #compute optimal tau
         tau,connectedComponents = compute_optimal_threshold(neighborsMatrix,scoringMatrix,N)
@@ -75,15 +116,23 @@ def get_aggregate_partition(G,nodeCommArray,tau = None):
         connectedComponents = ig.Clustering(connectedComponents)
         coreCommunities = [x for x in connectedComponents if len(x) > MIN_CORE_COMM_SIZE]
     
+    #if rare case (usually degenerate) of no core communities, output CC's as final answer
     if len(coreCommunities) < 1:
         return connectedComponents
     
+    #output core communities only, this will result in some of the nodes missing from final partition
+    if connectStrayNodes == False:
+        return coreCommunities
+
     #merge stray nodes with core communities    
     coreNodes = reduce(lambda x,y:x+y,coreCommunities)
     strayNodes = [v.index for v in G.vs if v.index not in coreNodes]
     finalCommunities = deepcopy(coreCommunities)
     
+    #intialize array to store distances
     commDistanceMatrix = np.zeros([len(coreCommunities),G.vcount()])
+    
+    #compute distances of stray nodes to each core community 
     for commIndex,comm in enumerate(coreCommunities):
         commMatrix = scoringMatrix[comm]
         commMatrix = commMatrix.astype(np.float16)
@@ -91,9 +140,16 @@ def get_aggregate_partition(G,nodeCommArray,tau = None):
         commDistanceMatrix[commIndex,:] = commMatrix
     maxCommIds = np.argmax(commDistanceMatrix,axis=0)
     
+    #add stray nodes to the "closest" core community
     for strayNode in strayNodes:
         finalCommunities[maxCommIds[strayNode]].append(strayNode)
+    
+    
     return finalCommunities
+
+
+
+
 
 def compute_stability_score(connectedComponents,numComs,neighborsMatrix,N):
     
@@ -102,16 +158,18 @@ def compute_stability_score(connectedComponents,numComs,neighborsMatrix,N):
     for commId in range(numComs):
         comm = np.where(connectedComponents == commId)[0]
         commSize = float(len(comm))
-        #remove extra else statement!!
+        
         if commSize <= 1.0:
             intraCommScore = 0
         else:
             intraCommMatrix = neighborsMatrix[comm]
             intraCommMatrix = intraCommMatrix[:,comm]
-            intraCommScore = np.divide(intraCommMatrix.sum()/N,(commSize*(commSize-1))/2.)
+            intraCommMatrix = sp.triu(intraCommMatrix,k=1)
+            intraCommScore = np.divide( intraCommMatrix.sum()/N,(commSize*(commSize-1))/2. )
         
         weightedScore = (commSize/numNodes)*(intraCommScore) 
         stabilityScores.append(weightedScore)
+    
     score = np.sum(stabilityScores) 
     return score
 
@@ -121,6 +179,7 @@ def compute_optimal_threshold(neighborsMatrix,scoringMatrix,N):
     optThreshold = -1
     optScore = np.finfo(np.float64).min
     for threshold in thresholds:
+        logging.debug("threshold:   {0}".format(threshold))
         neighborsMatrix.data[neighborsMatrix.data < threshold] = 0
         neighborsMatrix.eliminate_zeros()
         numComs,connectedComponents = sp.csgraph.connected_components(neighborsMatrix,directed = False)
@@ -140,46 +199,4 @@ def compute_optimal_threshold(neighborsMatrix,scoringMatrix,N):
         optThreshold = 2
         return optThreshold,optConnectedComponents
 
-        
 
-def get_weighted_neighbors(queryNode,nodeCommArray,commNodeArray):
-    neighbors = nodeCommArray[queryNode]*commNodeArray
-    nonzeroIndices = np.nonzero(neighbors)[0]
-    return zip(nonzeroIndices,neighbors[nonzeroIndices])
-
-
-
-#deprecated function to find connected components
-def fast_connected_components(neighborsMatrix,mu):
-    
-    exploredNodes = set()
-    nodeQueue = deque()
-    connectedComponents = []
-
-    for node in xrange(neighborsMatrix.shape[0]):
-        if node not in exploredNodes:
-            exploredNodes.add(node)
-        else:
-            continue
-
-        nodeQueue.append(node)
-        component = []
-        while len(nodeQueue) > 0:
-            currentNode = nodeQueue.pop()
-            component.append(currentNode)
-            
-            neighbors = neighborsMatrix[currentNode]
-            neighbors = np.asarray(neighbors)[0]
-            neighbors = np.where(neighbors >= mu)[0].tolist()
-            
-            for neighbor in neighbors:
-                if neighbor not in exploredNodes:
-                    nodeQueue.append(neighbor)
-                    exploredNodes.add(neighbor)
-
-        connectedComponents.append(component)
-    
-    return connectedComponents
-
-
- 
