@@ -1,15 +1,13 @@
-hack instillation:
+Installation:
 
-
-sys.path.append("/edgeboost_path")
-import edgeboost.EdgeBoost
+sudo python setup.py install 
 
 
 usage:
 
 G -- an igraph Graph object
 comm_func -- community function on igraph object, use lambda
-( e.g  x:x.community_mulilevel() for louvain)
+( e.g  x:x.community_multilevel() for louvain)
  
 link_algorithm -- link prediction algorithm, either "common_neighbors" or
 "adamic_adar"
