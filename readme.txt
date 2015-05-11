@@ -1,8 +1,6 @@
-hack instillation:
+instillation:
 
-
-sys.path.append("/edgeboost_path")
-import edgeboost.EdgeBoost
+sudo python setup.py install 
 
 
 usage:
