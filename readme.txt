@@ -6,19 +6,26 @@ sudo python setup.py install
 usage:
 
 G -- an igraph Graph object
+
 comm_func -- community function on igraph object, use lambda
 ( e.g  x:x.community_multilevel() for louvain)
  
-link_algorithm -- link prediction algorithm, either "common_neighbors" or
+link_algorithm -- link prediction algorithm, either "common_neighbors" , "jaccard" or
 "adamic_adar"
 
 N  = number of boosting iterations, for small networks use 100 or more
- 
 
-edgeBooster = CommunityEdgeBoost(comm_func,link_algorithm,numIterations = N)
+
+example:
+
+import igraph as ig
+from edgeboost.EdgeBoost import CommunityEdgeBoost
+
+G = ig.Graph.Erdos_Renyi(200,0.1)
+ 
+edgeBooster = CommunityEdgeBoost(lambda x:x.community_multilevel(),"common_neighbors",numIterations = 10)
 
 communities = edgeBooster.detect_communities(G)
 
-(e.g [[0,1,2],[4,5,6]] is a partition of the node vertices into two
-partitions [0,1,2] and [4,5,6] on a graph with vertex ids 0-5) 
+print communities
 

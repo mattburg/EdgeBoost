@@ -59,8 +59,6 @@ def local_path_scorer(G,epsilon = 0.1):
 
 
 
-
-
 def adamic_adar_scorer(G):
     """Computes the CN (Common Neighbor) score for all missing edges in G.
 
@@ -124,7 +122,7 @@ def random_edge_scorer(G):
     return edgeList,scores
 
 
-def link_imputation(G,linkPredictorFunc = common_neighbors_scorer, numImputations = 10):
+def link_imputation(G,linkPredictorFunc = common_neighbors_scorer, numImputations = 10, linkImputationPercent = None):
     """ randomly samples the missing edges in G according to the provided link prediction function.
     Each iteration randomly samples k edges (which is drawn as a random number between 1 and E). 
     The randomly sampled edges are then added as an attribute to the network G['imputation_batches'], which is a list of lists"""  
@@ -144,9 +142,14 @@ def link_imputation(G,linkPredictorFunc = common_neighbors_scorer, numImputation
     maxImputed =  min(len(scores),G.ecount())
     imputationBatches = []
     for i in range(numImputations):
-
-        k = np.random.randint(1,maxImputed) #sample num imputed edges
-        numsample = min(k+maxImputed,G.ecount())
+        
+        if linkImputationPercent == None:
+            k = np.random.randint(1,maxImputed) #sample num imputed edges
+            numsample = min(k+maxImputed,G.ecount())
+        else:
+            k = int(G.ecount()*linkImputationPercent)
+            numsample = k
+        
         linkSample = np.random.choice(linkIndices,numsample,False,scores)
         linkSample = np.array([rowIndices[linkSample],columnIndices[linkSample]]).T
         edgeIndices = np.array(G.get_eids(linkSample,error = False))

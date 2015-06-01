@@ -44,6 +44,28 @@ if is_igraph_installed() == False:
     print "Install igraph (version >= 0.6.0) before installing EdgeBoost"
     exit()
 
+else:
+    import igraph
+    print "detected igraph version:  ",igraph.__version__
+
+
+if is_numpy_installed() == False:
+    print "Install numpy (version >= 1.7.0) before installing EdgeBoost"
+    exit()
+
+else:
+    import numpy
+    print "detected numpy version:  ",numpy.__version__
+
+if is_scipy_installed() == False:
+    print "Install scipy (version >= 0.14.0) before installing EdgeBoost"
+    exit()
+
+else:
+    import scipy
+    print "detected scipy version:  ",scipy.__version__
+
+
 
 setup(name='EdgeBoost',
       version='0.1',
@@ -51,7 +73,6 @@ setup(name='EdgeBoost',
       author='Matthew Burgess',
       author_email='mattburg@umich.edu',
       url='http://web.eecs.umich.edu/~mattburg/',
-      packages=['edgeboost'],
-      install_requires = ['numpy >= 1.7','scipy >= 0.14'])
+      packages=['edgeboost'])
 
 

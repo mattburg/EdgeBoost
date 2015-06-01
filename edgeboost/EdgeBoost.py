@@ -7,7 +7,6 @@ import sys
 
 """main module that contains different instatiations of the edgeboost framework, currently only contains the CommunityEdgeBoost object that boosts community detection"""
 
-
 class CommunityEdgeBoost():
     """ Community EdgeBoost Class, takes community detection algorithm C(G) and
     link prediction function L(G) as input.
@@ -23,7 +22,7 @@ class CommunityEdgeBoost():
         
         """
     
-    def __init__(self,communityDetector,linkPredictor,numIterations = 10,threshold = None,connectStrayNodes = True,verbose = False):
+    def __init__(self,communityDetector,linkPredictor,numIterations = 10,threshold = None,connectStrayNodes = True,imputationPercentage = None,verbose = False):
         #assign the community function, must be of form f(G_igraph) --> VertexClustering
         
         if verbose == True:
@@ -50,11 +49,12 @@ class CommunityEdgeBoost():
             self.threshold = None
         
         self.connectStrayNodes = connectStrayNodes 
+        self.linkImputationPercent  = imputationPercentage
 
     def detect_communities(self,G):
         #create imputated networks
         logging.debug("running link prediction and imputation")
-        G = LinkPrediction.link_imputation(G,self.linkPredictor,self.numIterations)
+        G = LinkPrediction.link_imputation(G,self.linkPredictor,self.numIterations,self.linkImputationPercent)
         
         logging.debug("clustering imputed networks")
         nodeTable = Community.compute_community_partitions(G,self.communityDetector)
@@ -105,4 +105,39 @@ class RewireEdgeBoost():
                 tau = self.threshold)
             
         return communities
+
+
+
+class ThresholdEdgeBoost():
+    """ protype threshold booster, cluster network over various threshold settings of a weighted network
+    
+    paramaters:
+        
+        communityDetector:   community detection function
+
+        
+        """
+    def __init__(self,communityDetector,thresholds):
+        #assign the community function, must be of form f(G_igraph) --> VertexClustering
+        
+        self.communityDetector = communityDetector
+        
+        self.thresholds =  thresholds       
+    
+
+    def detect_communities(self,G):
+        #create imputated networks
+        
+        logging.debug("clustering networks")
+        nodeTable = Community.compute_threshold_community_partitions(G,self.communityDetector,self.thresholds)
+        
+        logging.debug("aggregating final partition")
+        communities = Community.aggregate_partitions(G,nodeTable,N = len(self.thresholds),
+                tau = None)
+            
+        return communities
+
+
+
+
 

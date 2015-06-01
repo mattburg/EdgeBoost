@@ -88,6 +88,39 @@ def compute_rewire_community_partitions(G,communityFunc,numIterations,rewireProb
 
 
 
+def compute_threshold_community_partitions(G,communityFunc,thresholds):
+    
+    #number of times to run community detection
+    
+    #intialize arrays that store node and community assignments
+    nodeCommArray = []
+    
+    #for each pre-computed batch of imputed links, add links to network and cluster
+    #storing each clustering in the two tables
+    commCounterId = 1
+    for t in thresholds:
+        
+        edgesAboveThreshold = [e for e in G.es if e['weight'] > t]
+        G_pruned = G.subgraph_edges(edgesAboveThreshold,delete_vertices=False)
+        communityIterator =  communityFunc(G_pruned)
+        
+        nodeCommArray.extend([(n,j+commCounterId) for j,comm in enumerate(communityIterator) for n in comm])
+        #increment counter that assigns ids to each community
+        commCounterId+=len(communityIterator)
+    
+    #create dense array of node --> community array where each row is a node
+    #and each column is a vector representing all of the communities for that node
+    
+
+    x = np.array([index[0] for index in nodeCommArray])
+    y = np.array([index[1] for index in nodeCommArray])
+    nodeCommArray = sp.coo_matrix((np.ones(x.shape),(x,y)),dtype = np.uint8).tocsr()
+    return nodeCommArray
+
+
+
+
+
 
 def aggregate_partitions(G,nodeCommArray,N,tau = None,connectStrayNodes=True):
     
